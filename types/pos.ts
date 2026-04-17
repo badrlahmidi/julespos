@@ -1,10 +1,12 @@
-export type TableStatus = 'free' | 'occupied' | 'billing' | 'cleaning';
+export type TableStatus = 'available' | 'occupied' | 'ordered' | 'billing';
 
 export interface Table {
   id: string;
-  name: string;
+  label: string;
   status: TableStatus;
-  seats: number;
+  capacity: number;
+  orderId?: string;
+  lastActionTime?: number; // timestamp
 }
 
 export interface Category {
