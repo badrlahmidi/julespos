@@ -8,6 +8,7 @@ interface PosState {
   // Actions
   openTable: (tableId: string) => void;
   addItemToOrder: (product: Product, quantity?: number, selectedModifiers?: Modifier[]) => void;
+  updateItemQuantity: (orderItemId: string, quantity: number) => void;
   removeItemFromOrder: (orderItemId: string) => void;
   calculateTotals: () => void;
   clearCurrentOrder: () => void;
@@ -37,14 +38,46 @@ export const usePosStore = create<PosState>((set, get) => ({
     set((state) => {
       if (!state.currentOrder) return state;
 
-      const newItem: OrderItem = {
-        id: generateId(),
-        product,
-        quantity,
-        selectedModifiers,
-      };
+      const existingItemIndex = state.currentOrder.items.findIndex(
+        item => item.product.id === product.id &&
+                JSON.stringify(item.selectedModifiers) === JSON.stringify(selectedModifiers)
+      );
 
-      const updatedItems = [...state.currentOrder.items, newItem];
+      let updatedItems: OrderItem[];
+      if (existingItemIndex >= 0) {
+        updatedItems = [...state.currentOrder.items];
+        // Ensure quantity exists
+        if (updatedItems[existingItemIndex]) {
+            updatedItems[existingItemIndex].quantity += quantity;
+        }
+      } else {
+        const newItem: OrderItem = {
+          id: generateId(),
+          product,
+          quantity,
+          selectedModifiers,
+        };
+        updatedItems = [...state.currentOrder.items, newItem];
+      }
+
+      return {
+        currentOrder: {
+          ...state.currentOrder,
+          items: updatedItems,
+        },
+      };
+    });
+
+    get().calculateTotals();
+  },
+
+  updateItemQuantity: (orderItemId: string, quantity: number) => {
+    set((state) => {
+      if (!state.currentOrder) return state;
+
+      const updatedItems = state.currentOrder.items.map(item =>
+        item.id === orderItemId ? { ...item, quantity: Math.max(1, quantity) } : item
+      );
 
       return {
         currentOrder: {
