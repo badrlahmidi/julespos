@@ -6,9 +6,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface OrderTicketProps {
   tableName?: string;
+  onPayClick?: () => void;
 }
 
-export const OrderTicket = ({ tableName = "Client de passage" }: OrderTicketProps) => {
+export const OrderTicket = ({ tableName = "Client de passage", onPayClick }: OrderTicketProps) => {
   const currentOrder = usePosStore((state) => state.currentOrder);
   const addItem = usePosStore((state) => state.addItemToOrder);
   const removeItem = usePosStore((state) => state.removeItemFromOrder);
@@ -90,6 +91,7 @@ export const OrderTicket = ({ tableName = "Client de passage" }: OrderTicketProp
 
         <button
           disabled={!hasItems}
+          onClick={onPayClick}
           className="w-full bg-pos-emerald hover:bg-pos-emerald-hover disabled:bg-pos-darker disabled:text-pos-text-muted text-white text-lg font-bold py-4 rounded-pos transition-colors flex items-center justify-center gap-2 shadow-md disabled:shadow-none"
         >
           <ShoppingBag size={24} />

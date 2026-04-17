@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { Order, OrderItem, Product, Modifier, Table, TableStatus } from '../types/pos';
 
 interface PosState {
@@ -29,11 +30,13 @@ const MOCK_TABLES: Table[] = [
   { id: '11', label: '11', capacity: 4, status: 'available' },
 ];
 
-export const usePosStore = create<PosState>((set, get) => ({
-  currentOrder: null,
-  tables: MOCK_TABLES,
+export const usePosStore = create<PosState>()(
+  persist(
+    (set, get) => ({
+      currentOrder: null,
+      tables: MOCK_TABLES,
 
-  openTable: (tableId: string) => {
+      openTable: (tableId: string) => {
     set((state) => {
       // Find existing table
       const table = state.tables.find(t => t.id === tableId);
@@ -180,42 +183,50 @@ export const usePosStore = create<PosState>((set, get) => ({
     get().calculateTotals();
   },
 
-  calculateTotals: () => {
-    set((state) => {
-      if (!state.currentOrder) return state;
+      calculateTotals: () => {
+        set((state) => {
+          if (!state.currentOrder) return state;
 
-      let totalHT = 0;
-      let totalTax = 0;
-      let total = 0;
+          let totalHT = 0;
+          let totalTax = 0;
+          let total = 0;
 
-      state.currentOrder.items.forEach((item) => {
-        let itemPriceHT = item.product.price;
-        if (item.selectedModifiers) {
-          item.selectedModifiers.forEach(modifier => {
-            itemPriceHT += modifier.price;
+          state.currentOrder.items.forEach((item) => {
+            let itemPriceHT = item.product.price;
+            if (item.selectedModifiers) {
+              item.selectedModifiers.forEach(modifier => {
+                itemPriceHT += modifier.price;
+              });
+            }
+
+            const itemTotalHT = itemPriceHT * item.quantity;
+            const itemTax = itemTotalHT * (item.product.taxRate / 100);
+
+            totalHT += itemTotalHT;
+            totalTax += itemTax;
+            total += itemTotalHT + itemTax;
           });
-        }
 
-        const itemTotalHT = itemPriceHT * item.quantity;
-        const itemTax = itemTotalHT * (item.product.taxRate / 100);
+          // Precision rounding to avoid JS floating point errors
+          const round2 = (num: number) => Math.round(num * 100) / 100;
 
-        totalHT += itemTotalHT;
-        totalTax += itemTax;
-        total += itemTotalHT + itemTax;
-      });
+          return {
+            currentOrder: {
+              ...state.currentOrder,
+              totalHT: round2(totalHT),
+              totalTax: round2(totalTax),
+              total: round2(total),
+            },
+          };
+        });
+      },
 
-      return {
-        currentOrder: {
-          ...state.currentOrder,
-          totalHT,
-          totalTax,
-          total,
-        },
-      };
-    });
-  },
-
-  clearCurrentOrder: () => {
-    set({ currentOrder: null });
-  }
-}));
+      clearCurrentOrder: () => {
+        set({ currentOrder: null });
+      }
+    }),
+    {
+      name: 'pos-storage',
+    }
+  )
+);

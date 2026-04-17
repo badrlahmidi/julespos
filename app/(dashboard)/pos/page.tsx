@@ -7,6 +7,7 @@ import { CategoryBar } from '../../../components/pos/CategoryBar';
 import { ProductCard } from '../../../components/pos/ProductCard';
 import { OrderTicket } from '../../../components/pos/OrderTicket';
 import { FloorPlan } from '../../../components/pos/FloorPlan';
+import { PaymentModal } from '../../../components/pos/PaymentModal';
 import type { Product, Category } from '../../../types/pos';
 
 // Mock data
@@ -31,6 +32,7 @@ const mockProducts: Product[] = [
 
 export default function PosPage() {
   const [viewMode, setViewMode] = useState<'floor' | 'order'>('floor');
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState('1');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -119,10 +121,15 @@ export default function PosPage() {
           {/* Order Ticket Panel (Right) */}
           <OrderTicket
             tableName={currentOrder?.tableId ? `Table ${tables.find(t => t.id === currentOrder.tableId)?.label || currentOrder.tableId}` : "Vente au comptoir"}
+            onPayClick={() => setIsPaymentModalOpen(true)}
           />
         </>
       )}
 
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+      />
     </div>
   );
 }
