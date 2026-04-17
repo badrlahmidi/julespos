@@ -1,7 +1,7 @@
 "use client";
 
 import { usePosStore } from '../../store/usePosStore';
-import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
+import { Trash2, Plus, Minus, ShoppingBag, ChefHat } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface OrderTicketProps {
@@ -14,8 +14,10 @@ export const OrderTicket = ({ tableName = "Client de passage", onPayClick }: Ord
   const addItem = usePosStore((state) => state.addItemToOrder);
   const removeItem = usePosStore((state) => state.removeItemFromOrder);
   const updateQuantity = usePosStore((state) => state.updateItemQuantity);
+  const sendToKitchen = usePosStore((state) => state.sendToKitchen);
 
   const hasItems = currentOrder && currentOrder.items.length > 0;
+  const isSent = currentOrder?.status === 'sent-to-kitchen' || currentOrder?.status === 'preparing' || currentOrder?.status === 'ready';
 
   return (
     <div className="flex flex-col h-full bg-pos-darker border-l border-pos-card w-[380px] shrink-0">
@@ -72,8 +74,20 @@ export const OrderTicket = ({ tableName = "Client de passage", onPayClick }: Ord
         )}
       </div>
 
-      {/* Footer: Totals & Pay Button */}
+      {/* Footer: Actions & Totals */}
       <div className="p-6 bg-pos-card rounded-tl-2xl rounded-tr-2xl shadow-lg mt-auto">
+        {hasItems && !isSent && (
+          <button
+            onClick={() => {
+              if (currentOrder) sendToKitchen(currentOrder.id);
+            }}
+            className="w-full bg-pos-warning hover:bg-orange-600 text-white font-bold py-3 rounded-pos transition-colors flex items-center justify-center gap-2 mb-4 shadow-sm"
+          >
+            <ChefHat size={20} />
+            Envoyer en cuisine
+          </button>
+        )}
+
         <div className="space-y-2 mb-6">
           <div className="flex justify-between text-pos-text-secondary">
             <span>Sous-total HT</span>

@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Order, OrderItem, Product, Modifier, Table, TableStatus } from '../types/pos';
+import type { Order, OrderItem, Product, Modifier, Table, TableStatus, OrderStatus, OrderItemStatus } from '../types/pos';
 
 interface PosState {
   currentOrder: Order | null;
   tables: Table[];
+  activeOrders: Order[]; // For KDS
 
   // Actions
   openTable: (tableId: string) => void;
@@ -15,6 +16,12 @@ interface PosState {
   removeItemFromOrder: (orderItemId: string) => void;
   calculateTotals: () => void;
   clearCurrentOrder: () => void;
+
+  // KDS Actions
+  sendToKitchen: (orderId: string) => void;
+  updateItemPrepStatus: (orderId: string, itemId: string, status: OrderItemStatus) => void;
+  updateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  toggleOrderUrgent: (orderId: string) => void;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -35,6 +42,7 @@ export const usePosStore = create<PosState>()(
     (set, get) => ({
       currentOrder: null,
       tables: MOCK_TABLES,
+      activeOrders: [],
 
       openTable: (tableId: string) => {
     set((state) => {
@@ -223,7 +231,80 @@ export const usePosStore = create<PosState>()(
 
       clearCurrentOrder: () => {
         set({ currentOrder: null });
+      },
+
+      // KDS Actions
+      sendToKitchen: (orderId: string) => {
+        set((state) => {
+          if (!state.currentOrder || state.currentOrder.id !== orderId) return state;
+
+          const updatedOrder: Order = {
+            ...state.currentOrder,
+            status: 'sent-to-kitchen',
+            sentAt: Date.now(),
+            items: state.currentOrder.items.map(item => ({ ...item, status: 'pending' }))
+          };
+
+          const existingOrderIndex = state.activeOrders.findIndex(o => o.id === orderId);
+          let newActiveOrders = [...state.activeOrders];
+
+          if (existingOrderIndex >= 0) {
+            newActiveOrders[existingOrderIndex] = updatedOrder;
+          } else {
+            newActiveOrders.push(updatedOrder);
+          }
+
+          return {
+            currentOrder: updatedOrder,
+            activeOrders: newActiveOrders,
+            tables: state.currentOrder.tableId
+              ? state.tables.map(t => t.id === state.currentOrder!.tableId ? { ...t, status: 'ordered', lastActionTime: Date.now() } : t)
+              : state.tables
+          };
+        });
+      },
+
+      updateItemPrepStatus: (orderId: string, itemId: string, status: OrderItemStatus) => {
+        set((state) => {
+          const updatedActiveOrders = state.activeOrders.map(order => {
+            if (order.id === orderId) {
+              const updatedItems = order.items.map(item =>
+                item.id === itemId ? { ...item, status } : item
+              );
+
+              // Auto-update order status based on items
+              const allReady = updatedItems.every(i => i.status === 'ready');
+              const anyPreparing = updatedItems.some(i => i.status === 'preparing' || i.status === 'ready');
+
+              let newOrderStatus = order.status;
+              if (allReady) newOrderStatus = 'ready';
+              else if (anyPreparing) newOrderStatus = 'preparing';
+
+              return { ...order, items: updatedItems, status: newOrderStatus };
+            }
+            return order;
+          });
+
+          return { activeOrders: updatedActiveOrders };
+        });
+      },
+
+      updateOrderStatus: (orderId: string, status: OrderStatus) => {
+        set((state) => ({
+          activeOrders: state.activeOrders.map(order =>
+            order.id === orderId ? { ...order, status } : order
+          )
+        }));
+      },
+
+      toggleOrderUrgent: (orderId: string) => {
+        set((state) => ({
+          activeOrders: state.activeOrders.map(order =>
+            order.id === orderId ? { ...order, isUrgent: !order.isUrgent } : order
+          )
+        }));
       }
+
     }),
     {
       name: 'pos-storage',

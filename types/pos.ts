@@ -29,14 +29,17 @@ export interface Product {
   modifiers?: Modifier[];
 }
 
+export type OrderItemStatus = 'pending' | 'preparing' | 'ready';
+
 export interface OrderItem {
   id: string;
   product: Product;
   quantity: number;
   selectedModifiers?: Modifier[];
+  status?: OrderItemStatus;
 }
 
-export type OrderStatus = 'open' | 'paid' | 'cancelled';
+export type OrderStatus = 'open' | 'sent-to-kitchen' | 'preparing' | 'ready' | 'history' | 'paid' | 'cancelled';
 
 export interface Order {
   id: string;
@@ -46,4 +49,6 @@ export interface Order {
   totalHT: number;
   totalTax: number;
   status: OrderStatus;
+  sentAt?: number;
+  isUrgent?: boolean;
 }
