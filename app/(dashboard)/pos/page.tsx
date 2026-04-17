@@ -8,7 +8,11 @@ import { ProductCard } from '../../../components/pos/ProductCard';
 import { OrderTicket } from '../../../components/pos/OrderTicket';
 import { FloorPlan } from '../../../components/pos/FloorPlan';
 import { PaymentModal } from '../../../components/pos/PaymentModal';
+import { PinPad } from '../../../components/auth/PinPad';
+import { useAuthStore } from '../../../store/useAuthStore';
+import { useAuditStore } from '../../../store/useAuditStore';
 import type { Product, Category } from '../../../types/pos';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Mock data
 const mockCategories: Category[] = [
@@ -33,6 +37,9 @@ const mockProducts: Product[] = [
 export default function PosPage() {
   const [viewMode, setViewMode] = useState<'floor' | 'order'>('floor');
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
   const [activeCategory, setActiveCategory] = useState('1');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -40,6 +47,50 @@ export default function PosPage() {
   const currentOrder = usePosStore((state) => state.currentOrder);
   const addItem = usePosStore((state) => state.addItemToOrder);
   const tables = usePosStore((state) => state.tables);
+
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const login = useAuthStore((state) => state.login);
+  const logout = useAuthStore((state) => state.logout);
+  const logAction = useAuditStore((state) => state.logAction);
+
+  // Require login on mount if no user
+  useEffect(() => {
+    if (!currentUser) {
+      setIsLoginModalOpen(true);
+    }
+  }, [currentUser]);
+
+  const handleLogin = (pin: string) => {
+    const success = login(pin);
+    if (success) {
+      setIsLoginModalOpen(false);
+      setLoginError(null);
+      const user = useAuthStore.getState().currentUser;
+      if (user) {
+        logAction({
+          userId: user.id,
+          userName: user.name,
+          action: 'LOGIN',
+          details: 'Connexion au POS'
+        });
+      }
+    } else {
+      setLoginError("Code PIN incorrect");
+    }
+  };
+
+  const handleLogout = () => {
+    if (currentUser) {
+      logAction({
+        userId: currentUser.id,
+        userName: currentUser.name,
+        action: 'LOGOUT',
+        details: 'Déconnexion du POS'
+      });
+    }
+    logout();
+    setIsLoginModalOpen(true);
+  };
 
   const handleTableClick = (tableId: string) => {
     openTable(tableId);
@@ -58,8 +109,19 @@ export default function PosPage() {
 
       {/* Sidebar Navigation (Left) */}
       <aside className="w-[80px] bg-pos-darker border-r border-pos-card flex flex-col items-center py-6 shrink-0 z-20">
-        <div className="w-10 h-10 bg-pos-emerald rounded-pos flex items-center justify-center mb-8 shadow-md">
-          <span className="font-bold text-white text-xl">R</span>
+        <div className="flex flex-col items-center gap-4 mb-8">
+          <div className="w-10 h-10 bg-pos-emerald rounded-pos flex items-center justify-center shadow-md">
+            <span className="font-bold text-white text-xl">R</span>
+          </div>
+          {currentUser && (
+            <button
+              onClick={handleLogout}
+              className="w-10 h-10 rounded-full bg-pos-card border border-pos-darker flex items-center justify-center text-xs font-bold text-pos-text-secondary hover:text-white hover:bg-pos-dark transition-colors"
+              title={`Connecté en tant que ${currentUser.name}. Cliquer pour déconnecter.`}
+            >
+              {currentUser.name.substring(0, 2).toUpperCase()}
+            </button>
+          )}
         </div>
 
         <nav className="flex flex-col gap-6 flex-1">
@@ -130,6 +192,41 @@ export default function PosPage() {
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
       />
+
+      {/* Login Modal */}
+      <AnimatePresence>
+        {isLoginModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            />
+
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-md bg-pos-dark rounded-2xl shadow-2xl p-8 border border-pos-card flex flex-col items-center"
+            >
+              <div className="w-16 h-16 bg-pos-emerald rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                <span className="font-black text-white text-3xl">R</span>
+              </div>
+              <h2 className="text-2xl font-bold text-center mb-2">Ritaj POS</h2>
+              <p className="text-pos-text-muted text-center text-sm mb-8">
+                Veuillez saisir votre code PIN pour accéder à la caisse.
+              </p>
+
+              <PinPad
+                onPinComplete={handleLogin}
+                error={loginError}
+              />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

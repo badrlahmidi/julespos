@@ -1,8 +1,9 @@
 "use client";
 
 import { usePosStore } from '../../store/usePosStore';
-import { Trash2, Plus, Minus, ShoppingBag, ChefHat } from 'lucide-react';
+import { Trash2, Plus, Minus, ShoppingBag, ChefHat, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { RequirePermission } from '../auth/RequirePermission';
 
 interface OrderTicketProps {
   tableName?: string;
@@ -19,13 +20,38 @@ export const OrderTicket = ({ tableName = "Client de passage", onPayClick }: Ord
   const hasItems = currentOrder && currentOrder.items.length > 0;
   const isSent = currentOrder?.status === 'sent-to-kitchen' || currentOrder?.status === 'preparing' || currentOrder?.status === 'ready';
 
+  const clearCurrentOrder = usePosStore((state) => state.clearCurrentOrder);
+  const setTableStatus = usePosStore((state) => state.setTableStatus);
+
+  const handleVoidOrder = () => {
+    if (currentOrder?.tableId) {
+       setTableStatus(currentOrder.tableId, 'available');
+    }
+    clearCurrentOrder();
+  };
+
   return (
     <div className="flex flex-col h-full bg-pos-darker border-l border-pos-card w-[380px] shrink-0">
       {/* Header */}
-      <div className="p-6 border-b border-pos-card">
-        <h2 className="text-xl font-bold text-pos-text-primary">{tableName}</h2>
-        {currentOrder && (
-          <p className="text-sm text-pos-text-muted mt-1">Ticket #{currentOrder.id}</p>
+      <div className="p-6 border-b border-pos-card flex justify-between items-start">
+        <div>
+          <h2 className="text-xl font-bold text-pos-text-primary">{tableName}</h2>
+          {currentOrder && (
+            <p className="text-sm text-pos-text-muted mt-1">Ticket #{currentOrder.id}</p>
+          )}
+        </div>
+
+        {hasItems && (
+          <RequirePermission
+             permission="CAN_VOID_ORDER"
+             onAuthorizedAction={handleVoidOrder}
+             actionDetails={`Annulation du ticket #${currentOrder?.id}`}
+             orderId={currentOrder?.id}
+          >
+             <button className="p-2 text-pos-danger hover:bg-pos-danger/10 rounded-full transition-colors" title="Annuler la commande">
+                <XCircle size={24} />
+             </button>
+          </RequirePermission>
         )}
       </div>
 
@@ -53,12 +79,25 @@ export const OrderTicket = ({ tableName = "Client de passage", onPayClick }: Ord
 
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2 bg-pos-darker rounded-full px-2 py-1">
-                    <button
-                      onClick={() => item.quantity > 1 ? updateQuantity(item.id, item.quantity - 1) : removeItem(item.id)}
-                      className="text-pos-text-muted hover:text-pos-danger p-1"
-                    >
-                      {item.quantity > 1 ? <Minus size={16} /> : <Trash2 size={16} />}
-                    </button>
+                    {item.quantity > 1 ? (
+                      <button
+                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                        className="text-pos-text-muted hover:text-pos-danger p-1"
+                      >
+                        <Minus size={16} />
+                      </button>
+                    ) : (
+                      <RequirePermission
+                        permission="CAN_VOID_ITEM"
+                        onAuthorizedAction={() => removeItem(item.id)}
+                        actionDetails={`Suppression de l'article ${item.product.name}`}
+                        orderId={currentOrder?.id}
+                      >
+                        <button className="text-pos-text-muted hover:text-pos-danger p-1">
+                          <Trash2 size={16} />
+                        </button>
+                      </RequirePermission>
+                    )}
                     <span className="w-4 text-center text-pos-text-primary font-medium">{item.quantity}</span>
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity + 1)}

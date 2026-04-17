@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Order, OrderItem, Product, Modifier, Table, TableStatus, OrderStatus, OrderItemStatus } from '../types/pos';
+import { useAuditStore } from './useAuditStore';
+import { useAuthStore } from './useAuthStore';
 
 interface PosState {
   currentOrder: Order | null;
@@ -52,11 +54,25 @@ export const usePosStore = create<PosState>()(
       const newOrderId = table?.orderId || generateId();
 
       // Update table status if it was available
+      const isNewOpen = table?.status === 'available';
       const updatedTables = state.tables.map(t =>
-        t.id === tableId && t.status === 'available'
+        t.id === tableId && isNewOpen
           ? { ...t, status: 'occupied' as TableStatus, orderId: newOrderId, lastActionTime: Date.now() }
           : t
       );
+
+      if (isNewOpen) {
+         const user = useAuthStore.getState().currentUser;
+         if (user) {
+            useAuditStore.getState().logAction({
+               action: 'TABLE_OPENED',
+               userId: user.id,
+               userName: user.name,
+               details: `Ouverture de la table ${table?.label}`,
+               orderId: newOrderId
+            });
+         }
+      }
 
       return {
         tables: updatedTables,
@@ -237,6 +253,17 @@ export const usePosStore = create<PosState>()(
       sendToKitchen: (orderId: string) => {
         set((state) => {
           if (!state.currentOrder || state.currentOrder.id !== orderId) return state;
+
+          const user = useAuthStore.getState().currentUser;
+          if (user) {
+             useAuditStore.getState().logAction({
+                action: 'ORDER_SENT_TO_KITCHEN',
+                userId: user.id,
+                userName: user.name,
+                details: `${state.currentOrder.items.length} articles envoyés`,
+                orderId
+             });
+          }
 
           const updatedOrder: Order = {
             ...state.currentOrder,

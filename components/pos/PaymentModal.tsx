@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CreditCard, Banknote, Smartphone, QrCode, CheckCircle, Mail, MessageSquare } from 'lucide-react';
 import { usePosStore } from '../../store/usePosStore';
+import { useAuditStore } from '../../store/useAuditStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import type { OrderItem } from '../../types/pos';
 
 export type SplitMode = 'full' | 'equal' | 'item';
@@ -79,6 +81,17 @@ export const PaymentModal = ({ isOpen, onClose }: PaymentModalProps) => {
 
   const finalizePayment = () => {
     setIsSuccess(true);
+
+    const user = useAuthStore.getState().currentUser;
+    if (user && currentOrder) {
+      useAuditStore.getState().logAction({
+        action: 'ORDER_PAID',
+        userId: user.id,
+        userName: user.name,
+        details: `Montant payé: ${amountDue.toFixed(2)}€ (${splitMode})`,
+        orderId: currentOrder.id
+      });
+    }
 
     // In a real app, we would process the backend payment and split logic here
     // For this prototype, if it's full payment, we clear the table
