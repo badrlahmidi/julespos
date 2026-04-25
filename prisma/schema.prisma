@@ -74,20 +74,48 @@ model Product {
   updatedAt      DateTime        @updatedAt
 }
 
+model Customer {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  name      String
+  points    Int      @default(0)
+  qrCode    String?  @unique
+  orders    Order[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ZReport {
+  id          String   @id @default(cuid())
+  date        DateTime @default(now())
+  openedAt    DateTime
+  closedAt    DateTime
+  totalSales  Float
+  totalTax    Float
+  totalCash   Float
+  totalCard   Float
+  totalOther  Float
+  ordersCount Int
+  closedBy    String
+  createdAt   DateTime @default(now())
+}
+
 model Order {
-  id        String      @id @default(cuid())
-  tableId   String?
-  table     Table?      @relation(fields: [tableId], references: [id])
-  status    String // 'open', 'sent-to-kitchen', 'preparing', 'ready', 'history', 'paid', 'cancelled'
-  total     Float       @default(0)
-  totalHT   Float       @default(0)
-  totalTax  Float       @default(0)
-  isUrgent  Boolean     @default(false)
-  sentAt    DateTime?
-  items     OrderItem[]
-  auditLogs AuditLog[]
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  id         String      @id @default(cuid())
+  tableId    String?
+  table      Table?      @relation(fields: [tableId], references: [id])
+  customerId String?
+  customer   Customer?   @relation(fields: [customerId], references: [id])
+  status     String // 'open', 'sent-to-kitchen', 'preparing', 'ready', 'history', 'paid', 'cancelled'
+  total      Float       @default(0)
+  totalHT    Float       @default(0)
+  totalTax   Float       @default(0)
+  isUrgent   Boolean     @default(false)
+  sentAt     DateTime?
+  items      OrderItem[]
+  auditLogs  AuditLog[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
 }
 
 model OrderItem {

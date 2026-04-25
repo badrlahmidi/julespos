@@ -1,9 +1,12 @@
 "use client";
 
 import { usePosStore } from '../../store/usePosStore';
-import { Trash2, Plus, Minus, ShoppingBag, ChefHat, XCircle } from 'lucide-react';
+import { useState } from 'react';
+import { Trash2, Plus, Minus, ShoppingBag, ChefHat, XCircle, UserPlus, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RequirePermission } from '../auth/RequirePermission';
+import { useCrmStore } from '../../store/useCrmStore';
+import type { Customer } from '../../types/crm';
 
 interface OrderTicketProps {
   tableName?: string;
@@ -39,6 +42,20 @@ export const OrderTicket = ({ tableName = "Client de passage", onPayClick }: Ord
 
   const clearCurrentOrder = usePosStore((state) => state.clearCurrentOrder);
   const setTableStatus = usePosStore((state) => state.setTableStatus);
+  const findCustomerByPhone = useCrmStore((state) => state.findCustomerByPhone);
+
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [attachedCustomer, setAttachedCustomer] = useState<Customer | null>(null);
+
+  const handleCustomerSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const customer = findCustomerByPhone(customerPhone);
+    if (customer) {
+      setAttachedCustomer(customer);
+    } else {
+      alert("Client non trouvé");
+    }
+  };
 
   const handleVoidOrder = () => {
     if (currentOrder?.tableId) {
@@ -50,25 +67,55 @@ export const OrderTicket = ({ tableName = "Client de passage", onPayClick }: Ord
   return (
     <div className="flex flex-col h-full bg-pos-darker border-l border-pos-card w-[380px] shrink-0">
       {/* Header */}
-      <div className="p-6 border-b border-pos-card flex justify-between items-start">
-        <div>
-          <h2 className="text-xl font-bold text-pos-text-primary">{tableName}</h2>
-          {currentOrder && (
-            <p className="text-sm text-pos-text-muted mt-1">Ticket #{currentOrder.id}</p>
+      <div className="p-6 border-b border-pos-card flex flex-col gap-4">
+        <div className="flex justify-between items-start">
+          <div>
+            <h2 className="text-xl font-bold text-pos-text-primary">{tableName}</h2>
+            {currentOrder && (
+              <p className="text-sm text-pos-text-muted mt-1">Ticket #{currentOrder.id}</p>
+            )}
+          </div>
+
+          {hasItems && (
+            <RequirePermission
+               permission="CAN_VOID_ORDER"
+               onAuthorizedAction={handleVoidOrder}
+               actionDetails={`Annulation du ticket #${currentOrder?.id}`}
+               orderId={currentOrder?.id}
+            >
+               <button className="p-2 text-pos-danger hover:bg-pos-danger/10 rounded-full transition-colors" title="Annuler la commande">
+                  <XCircle size={24} />
+               </button>
+            </RequirePermission>
           )}
         </div>
 
-        {hasItems && (
-          <RequirePermission
-             permission="CAN_VOID_ORDER"
-             onAuthorizedAction={handleVoidOrder}
-             actionDetails={`Annulation du ticket #${currentOrder?.id}`}
-             orderId={currentOrder?.id}
-          >
-             <button className="p-2 text-pos-danger hover:bg-pos-danger/10 rounded-full transition-colors" title="Annuler la commande">
-                <XCircle size={24} />
-             </button>
-          </RequirePermission>
+        {/* Customer Attachment */}
+        {attachedCustomer ? (
+          <div className="flex items-center justify-between bg-purple-500/10 border border-purple-500/20 p-3 rounded-xl">
+            <div>
+              <p className="font-bold text-purple-400 text-sm">{attachedCustomer.name}</p>
+              <p className="text-xs text-pos-text-muted flex items-center gap-1 mt-1">
+                {attachedCustomer.points} pts <Star size={12} className="fill-yellow-500 text-yellow-500" />
+              </p>
+            </div>
+            <button onClick={() => setAttachedCustomer(null)} className="text-pos-text-muted hover:text-red-400 transition-colors">
+              <XCircle size={18} />
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleCustomerSearch} className="flex relative">
+            <input
+              type="tel"
+              placeholder="N° Téléphone Client"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(e.target.value)}
+              className="w-full bg-pos-card border-none rounded-xl py-2 px-3 text-sm text-pos-text-primary focus:outline-none focus:ring-1 focus:ring-purple-500"
+            />
+            <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 text-purple-400 hover:text-purple-300">
+              <UserPlus size={18} />
+            </button>
+          </form>
         )}
       </div>
 
@@ -181,7 +228,10 @@ export const OrderTicket = ({ tableName = "Client de passage", onPayClick }: Ord
 
         <button
           disabled={!hasItems}
-          onClick={onPayClick}
+          onClick={() => {
+             // In a real app, we might pass attachedCustomer.id to the payment modal
+             if (onPayClick) onPayClick();
+          }}
           className="w-full bg-pos-emerald hover:bg-pos-emerald-hover disabled:bg-pos-darker disabled:text-pos-text-muted text-white text-lg font-bold py-4 rounded-pos transition-colors flex items-center justify-center gap-2 shadow-md disabled:shadow-none"
         >
           <ShoppingBag size={24} />

@@ -7,6 +7,7 @@ import { usePosStore } from '../../store/usePosStore';
 import { useAuditStore } from '../../store/useAuditStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { usePrinterStore } from '../../store/usePrinterStore';
+import { useCrmStore } from '../../store/useCrmStore';
 import { generateOpenDrawerPayload, generateReceiptPayload, printViaWebUSB } from '../../lib/printerService';
 import type { OrderItem, Product } from '../../types/pos';
 
@@ -30,6 +31,7 @@ export const PaymentModal = ({ isOpen, onClose }: PaymentModalProps) => {
   const clearCurrentOrder = usePosStore((state) => state.clearCurrentOrder);
   const setTableStatus = usePosStore((state) => state.setTableStatus);
   const { printers, activePrinterId } = usePrinterStore();
+  const addPoints = useCrmStore(state => state.addPoints);
 
   // Precision math utilities
   const round2 = (num: number) => Math.round(num * 100) / 100;
@@ -96,9 +98,15 @@ export const PaymentModal = ({ isOpen, onClose }: PaymentModalProps) => {
       });
     }
 
-    // In a real app, we would process the backend payment and split logic here
+    // In a real app, we would pass the attached customer ID from the OrderTicket.
+    // For prototype, we'll just simulate attributing points to a generic customer if the amount is high enough.
+    // 1 EUR = 1 Point
+    if (amountDue > 10) {
+       addPoints('cust-1', Math.floor(amountDue));
+    }
+
     // For this prototype, if it's full payment, we clear the table
-    if (splitMode === 'full' && currentOrder.tableId) {
+    if (splitMode === 'full' && currentOrder?.tableId) {
       setTableStatus(currentOrder.tableId, 'available');
       clearCurrentOrder();
     }
