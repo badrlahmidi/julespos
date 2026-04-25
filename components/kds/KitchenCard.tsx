@@ -6,6 +6,14 @@ import { motion } from 'framer-motion';
 import { Check, Clock, AlertTriangle, ChefHat, Play, Flame, Undo } from 'lucide-react';
 import type { Order, OrderItemStatus, OrderStatus } from '../../types/pos';
 
+const COURSE_LABELS: Record<string, string> = {
+  drinks: 'Boissons',
+  starter: 'Entrées',
+  main: 'Plats',
+  dessert: 'Desserts',
+  uncategorized: 'Autres'
+};
+
 interface KitchenCardProps {
   order: Order;
 }
@@ -71,53 +79,67 @@ export const KitchenCard = ({ order }: KitchenCardProps) => {
 
       {/* Body: Items List */}
       <div className="flex-1 overflow-y-auto p-2 bg-pos-card">
-        {order.items.map(item => {
-          const isItemReady = item.status === 'ready';
-          const isItemPreparing = item.status === 'preparing';
+        {/* Group items by course for kitchen display */}
+        {['drinks', 'starter', 'main', 'dessert', 'uncategorized'].map(courseKey => {
+          const itemsInCourse = order.items.filter(item => (item.course || 'uncategorized') === courseKey);
+          if (itemsInCourse.length === 0) return null;
 
           return (
-            <motion.div
-              key={item.id}
-              layout
-              onClick={() => {
-                const nextStatus: OrderItemStatus = isItemReady ? 'pending' : (isItemPreparing ? 'ready' : 'preparing');
-                updateItemPrepStatus(order.id, item.id, nextStatus);
-              }}
-              className={`p-3 mb-2 rounded-lg border shadow-sm cursor-pointer transition-colors relative overflow-hidden ${
-                isItemReady ? 'bg-pos-emerald/10 border-pos-emerald opacity-60' :
-                isItemPreparing ? 'bg-pos-warning/10 border-pos-warning' :
-                'bg-pos-darker border-pos-dark'
-              }`}
-            >
-               {isItemReady && <div className="absolute inset-0 bg-pos-emerald/5 pointer-events-none" />}
+            <div key={courseKey} className="mb-4">
+              <h3 className="text-xs font-bold text-pos-text-muted uppercase tracking-widest mb-2 px-1">
+                {COURSE_LABELS[courseKey]}
+              </h3>
 
-               <div className="flex items-start gap-3 relative z-10">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg shrink-0 ${
-                    isItemReady ? 'bg-pos-emerald text-white' :
-                    isItemPreparing ? 'bg-pos-warning text-white' :
-                    'bg-pos-dark text-pos-text-primary'
-                  }`}>
-                    {isItemReady ? <Check size={16} /> : item.quantity}
-                  </div>
-                  <div className={`flex-1 ${isItemReady ? 'line-through text-pos-text-muted' : ''}`}>
-                    <h3 className="text-xl font-bold text-pos-text-primary leading-tight">{item.product.name}</h3>
+              {itemsInCourse.map(item => {
+                const isItemReady = item.status === 'ready';
+                const isItemPreparing = item.status === 'preparing';
 
-                    {/* Modifiers */}
-                    {item.selectedModifiers && item.selectedModifiers.length > 0 && !isItemReady && (
-                      <div className="mt-1 flex flex-col gap-1">
-                         {item.selectedModifiers.map(mod => {
-                           const isRemoval = mod.name.toLowerCase().includes('sans') || mod.name.toLowerCase().includes('no ');
-                           return (
-                             <span key={mod.id} className={`text-sm font-black uppercase tracking-wider ${isRemoval ? 'text-red-500' : 'text-pos-info'}`}>
-                                {isRemoval ? `🚫 ${mod.name}` : `➕ ${mod.name}`}
-                             </span>
-                           );
-                         })}
-                      </div>
-                    )}
-                  </div>
-               </div>
-            </motion.div>
+                return (
+                  <motion.div
+                    key={item.id}
+                    layout
+                    onClick={() => {
+                      const nextStatus: OrderItemStatus = isItemReady ? 'pending' : (isItemPreparing ? 'ready' : 'preparing');
+                      updateItemPrepStatus(order.id, item.id, nextStatus);
+                    }}
+                    className={`p-3 mb-2 rounded-lg border shadow-sm cursor-pointer transition-colors relative overflow-hidden ${
+                      isItemReady ? 'bg-pos-emerald/10 border-pos-emerald opacity-60' :
+                      isItemPreparing ? 'bg-pos-warning/10 border-pos-warning' :
+                      'bg-pos-darker border-pos-dark'
+                    }`}
+                  >
+                     {isItemReady && <div className="absolute inset-0 bg-pos-emerald/5 pointer-events-none" />}
+
+                     <div className="flex items-start gap-3 relative z-10">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg shrink-0 ${
+                          isItemReady ? 'bg-pos-emerald text-white' :
+                          isItemPreparing ? 'bg-pos-warning text-white' :
+                          'bg-pos-dark text-pos-text-primary'
+                        }`}>
+                          {isItemReady ? <Check size={16} /> : item.quantity}
+                        </div>
+                        <div className={`flex-1 ${isItemReady ? 'line-through text-pos-text-muted' : ''}`}>
+                          <h3 className="text-xl font-bold text-pos-text-primary leading-tight">{item.product.name}</h3>
+
+                          {/* Modifiers */}
+                          {item.selectedModifiers && item.selectedModifiers.length > 0 && !isItemReady && (
+                            <div className="mt-1 flex flex-col gap-1">
+                               {item.selectedModifiers.map(mod => {
+                                 const isRemoval = mod.name.toLowerCase().includes('sans') || mod.name.toLowerCase().includes('no ');
+                                 return (
+                                   <span key={mod.id} className={`text-sm font-black uppercase tracking-wider ${isRemoval ? 'text-red-500' : 'text-pos-info'}`}>
+                                      {isRemoval ? `🚫 ${mod.name}` : `➕ ${mod.name}`}
+                                   </span>
+                                 );
+                               })}
+                            </div>
+                          )}
+                        </div>
+                     </div>
+                  </motion.div>
+                );
+              })}
+            </div>
           );
         })}
       </div>

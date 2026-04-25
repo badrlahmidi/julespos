@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { io, Socket } from 'socket.io-client';
-import type { Order, OrderItem, Product, Modifier, Table, TableStatus, OrderStatus, OrderItemStatus } from '../types/pos';
+import type { Order, OrderItem, Product, ModifierOption, Table, TableStatus, OrderStatus, OrderItemStatus } from '../types/pos';
 import { useAuditStore } from './useAuditStore';
 import { useAuthStore } from './useAuthStore';
 
@@ -21,7 +21,7 @@ interface PosState {
   openTable: (tableId: string) => void;
   setTableStatus: (tableId: string, status: TableStatus) => void;
   transferOrder: (fromTableId: string, toTableId: string) => void;
-  addItemToOrder: (product: Product, quantity?: number, selectedModifiers?: Modifier[]) => void;
+  addItemToOrder: (product: Product, quantity?: number, selectedModifiers?: ModifierOption[], course?: 'starter' | 'main' | 'dessert' | 'drinks') => void;
   updateItemQuantity: (orderItemId: string, quantity: number) => void;
   removeItemFromOrder: (orderItemId: string) => void;
   calculateTotals: () => void;
@@ -202,12 +202,13 @@ export const usePosStore = create<PosState>()(
     });
   },
 
-  addItemToOrder: (product: Product, quantity = 1, selectedModifiers = []) => {
+      addItemToOrder: (product: Product, quantity = 1, selectedModifiers = [], course) => {
     set((state) => {
       if (!state.currentOrder) return state;
 
       const existingItemIndex = state.currentOrder.items.findIndex(
         item => item.product.id === product.id &&
+                    item.course === course &&
                 JSON.stringify(item.selectedModifiers) === JSON.stringify(selectedModifiers)
       );
 
@@ -219,12 +220,13 @@ export const usePosStore = create<PosState>()(
             updatedItems[existingItemIndex].quantity += quantity;
         }
       } else {
-        const newItem: OrderItem = {
+            const newItem: any = {
           id: generateId(),
           product,
           quantity,
           selectedModifiers,
         };
+            if (course) newItem.course = course;
         updatedItems = [...state.currentOrder.items, newItem];
       }
 

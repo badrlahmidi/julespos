@@ -8,6 +8,7 @@ import { ProductCard } from '../../../components/pos/ProductCard';
 import { OrderTicket } from '../../../components/pos/OrderTicket';
 import { FloorPlan } from '../../../components/pos/FloorPlan';
 import { PaymentModal } from '../../../components/pos/PaymentModal';
+import { ProductCustomizer } from '../../../components/pos/ProductCustomizer';
 import { PinPad } from '../../../components/auth/PinPad';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useAuditStore } from '../../../store/useAuditStore';
@@ -24,7 +25,47 @@ const mockCategories: Category[] = [
 ];
 
 const mockProducts: Product[] = [
-  { id: '1', name: 'Burger Classique', price: 12.5, taxRate: 10, category: '3' },
+  {
+    id: '1',
+    name: 'Burger Classique',
+    price: 12.5,
+    taxRate: 10,
+    category: '3',
+    modifierGroups: [
+      {
+        id: 'mg1',
+        name: 'Cuisson',
+        minSelections: 1,
+        maxSelections: 1,
+        options: [
+          { id: 'mo1', name: 'Saignant', price: 0 },
+          { id: 'mo2', name: 'À point', price: 0 },
+          { id: 'mo3', name: 'Bien cuit', price: 0 },
+        ]
+      },
+      {
+        id: 'mg2',
+        name: 'Suppléments',
+        minSelections: 0,
+        maxSelections: 3,
+        options: [
+          { id: 'mo4', name: 'Cheddar', price: 1.5 },
+          { id: 'mo5', name: 'Bacon', price: 2.0 },
+          { id: 'mo6', name: 'Double Steak', price: 4.5 },
+        ]
+      },
+      {
+        id: 'mg3',
+        name: 'Exclusions',
+        minSelections: 0,
+        maxSelections: 2,
+        options: [
+          { id: 'mo7', name: 'Sans Oignon', price: 0 },
+          { id: 'mo8', name: 'Sans Tomate', price: 0 },
+        ]
+      }
+    ]
+  },
   { id: '2', name: 'Pizza Margherita', price: 11.0, taxRate: 10, category: '3' },
   { id: '3', name: 'Salade César', price: 9.5, taxRate: 10, category: '2' },
   { id: '4', name: 'Coca-Cola', price: 3.5, taxRate: 20, category: '4' },
@@ -42,6 +83,7 @@ export default function PosPage() {
 
   const [activeCategory, setActiveCategory] = useState('1');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const openTable = usePosStore((state) => state.openTable);
   const currentOrder = usePosStore((state) => state.currentOrder);
@@ -181,7 +223,13 @@ export default function PosPage() {
                   <ProductCard
                     key={product.id}
                     product={product}
-                    onClick={(p) => addItem(p)}
+                onClick={(p) => {
+                  if (p.modifierGroups && p.modifierGroups.length > 0) {
+                    setSelectedProduct(p);
+                  } else {
+                    addItem(p);
+                  }
+                }}
                   />
                 ))}
               </div>
@@ -200,6 +248,17 @@ export default function PosPage() {
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
       />
+
+      {selectedProduct && (
+        <ProductCustomizer
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          onAddToCart={(product, quantity, selectedModifiers, course) => {
+            addItem(product, quantity, selectedModifiers, course);
+            setSelectedProduct(null);
+          }}
+        />
+      )}
 
       {/* Login Modal */}
       <AnimatePresence>

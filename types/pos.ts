@@ -14,10 +14,20 @@ export interface Category {
   name: string;
 }
 
-export interface Modifier {
+export type CourseType = 'starter' | 'main' | 'dessert' | 'drinks';
+
+export interface ModifierOption {
   id: string;
   name: string;
   price: number;
+}
+
+export interface ModifierGroup {
+  id: string;
+  name: string;
+  minSelections: number;
+  maxSelections: number;
+  options: ModifierOption[];
 }
 
 export interface Product {
@@ -26,7 +36,7 @@ export interface Product {
   price: number;
   taxRate: number;
   category: Category | string;
-  modifiers?: Modifier[];
+  modifierGroups?: ModifierGroup[];
 }
 
 export type OrderItemStatus = 'pending' | 'preparing' | 'ready';
@@ -35,8 +45,9 @@ export interface OrderItem {
   id: string;
   product: Product;
   quantity: number;
-  selectedModifiers?: Modifier[];
+  selectedModifiers?: ModifierOption[];
   status?: OrderItemStatus;
+  course?: CourseType;
 }
 
 export type OrderStatus = 'open' | 'sent-to-kitchen' | 'preparing' | 'ready' | 'history' | 'paid' | 'cancelled';

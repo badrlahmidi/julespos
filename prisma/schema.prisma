@@ -42,28 +42,36 @@ model Category {
   updatedAt DateTime  @updatedAt
 }
 
-model Modifier {
-  id         String              @id @default(cuid())
-  name       String
-  price      Float
-  productId  String
-  product    Product             @relation(fields: [productId], references: [id])
-  orderItems OrderItemModifier[]
-  createdAt  DateTime            @default(now())
-  updatedAt  DateTime            @updatedAt
+model ModifierGroup {
+  id            String           @id @default(cuid())
+  name          String
+  minSelections Int              @default(0)
+  maxSelections Int              @default(1)
+  options       ModifierOption[]
+  productId     String
+  product       Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model ModifierOption {
+  id              String              @id @default(cuid())
+  name            String
+  price           Float               @default(0)
+  modifierGroupId String
+  modifierGroup   ModifierGroup       @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+  orderItems      OrderItemModifier[]
 }
 
 model Product {
-  id         String      @id @default(cuid())
-  name       String
-  price      Float
-  taxRate    Float       @default(10)
-  categoryId String
-  category   Category    @relation(fields: [categoryId], references: [id])
-  modifiers  Modifier[]
-  orderItems OrderItem[]
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id             String          @id @default(cuid())
+  name           String
+  price          Float
+  taxRate        Float           @default(10)
+  categoryId     String
+  category       Category        @relation(fields: [categoryId], references: [id])
+  modifierGroups ModifierGroup[]
+  orderItems     OrderItem[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 }
 
 model Order {
@@ -90,18 +98,19 @@ model OrderItem {
   product   Product             @relation(fields: [productId], references: [id])
   quantity  Int                 @default(1)
   status    String              @default("pending") // 'pending', 'preparing', 'ready'
+  course    String? // 'starter', 'main', 'dessert', 'drinks'
   modifiers OrderItemModifier[]
   createdAt DateTime            @default(now())
   updatedAt DateTime            @updatedAt
 }
 
 model OrderItemModifier {
-  orderItemId String
-  modifierId  String
-  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  modifier    Modifier  @relation(fields: [modifierId], references: [id], onDelete: Cascade)
+  orderItemId      String
+  modifierOptionId String
+  orderItem        OrderItem      @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  modifierOption   ModifierOption @relation(fields: [modifierOptionId], references: [id], onDelete: Cascade)
 
-  @@id([orderItemId, modifierId])
+  @@id([orderItemId, modifierOptionId])
 }
 
 model AuditLog {

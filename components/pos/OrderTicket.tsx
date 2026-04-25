@@ -20,6 +20,23 @@ export const OrderTicket = ({ tableName = "Client de passage", onPayClick }: Ord
   const hasItems = currentOrder && currentOrder.items.length > 0;
   const isSent = currentOrder?.status === 'sent-to-kitchen' || currentOrder?.status === 'preparing' || currentOrder?.status === 'ready';
 
+  // Group items by course
+  const groupedItems = {
+    drinks: currentOrder?.items.filter(i => i.course === 'drinks') || [],
+    starter: currentOrder?.items.filter(i => i.course === 'starter') || [],
+    main: currentOrder?.items.filter(i => i.course === 'main') || [],
+    dessert: currentOrder?.items.filter(i => i.course === 'dessert') || [],
+    uncategorized: currentOrder?.items.filter(i => !i.course) || [],
+  };
+
+  const courseLabels = {
+    drinks: 'Boissons',
+    starter: 'Entrées',
+    main: 'Plats',
+    dessert: 'Desserts',
+    uncategorized: 'Autres'
+  };
+
   const clearCurrentOrder = usePosStore((state) => state.clearCurrentOrder);
   const setTableStatus = usePosStore((state) => state.setTableStatus);
 
@@ -56,60 +73,80 @@ export const OrderTicket = ({ tableName = "Client de passage", onPayClick }: Ord
       </div>
 
       {/* Body: Scrollable list or Empty State */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto p-4">
         {!hasItems ? (
           <div className="h-full flex flex-col items-center justify-center text-pos-text-muted opacity-60">
             <ShoppingBag size={48} className="mb-4" />
             <p className="text-center px-6">En attente d'une commande savoureuse...</p>
           </div>
         ) : (
-          <AnimatePresence>
-            {currentOrder.items.map((item) => (
-              <motion.div
-                key={item.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                className="flex items-center justify-between p-3 bg-pos-card rounded-pos shadow-sm"
-              >
-                <div className="flex-1">
-                  <p className="text-pos-text-primary font-medium">{item.product.name}</p>
-                  <p className="text-pos-emerald text-sm">{item.product.price.toFixed(2)} €</p>
-                </div>
+          <div className="space-y-6">
+            {(Object.entries(groupedItems) as [keyof typeof groupedItems, typeof currentOrder.items][]).map(([course, items]) => {
+              if (items.length === 0) return null;
 
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 bg-pos-darker rounded-full px-2 py-1">
-                    {item.quantity > 1 ? (
-                      <button
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        className="text-pos-text-muted hover:text-pos-danger p-1"
+              return (
+                <div key={course} className="space-y-3">
+                  <h3 className="text-sm font-bold text-pos-text-secondary uppercase tracking-wider border-b border-pos-card pb-1">
+                    {courseLabels[course]}
+                  </h3>
+                  <AnimatePresence>
+                    {items.map((item) => (
+                      <motion.div
+                        key={item.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        className="flex items-center justify-between p-3 bg-pos-card rounded-pos shadow-sm"
                       >
-                        <Minus size={16} />
-                      </button>
-                    ) : (
-                      <RequirePermission
-                        permission="CAN_VOID_ITEM"
-                        onAuthorizedAction={() => removeItem(item.id)}
-                        actionDetails={`Suppression de l'article ${item.product.name}`}
-                        orderId={currentOrder?.id}
-                      >
-                        <button className="text-pos-text-muted hover:text-pos-danger p-1">
-                          <Trash2 size={16} />
-                        </button>
-                      </RequirePermission>
-                    )}
-                    <span className="w-4 text-center text-pos-text-primary font-medium">{item.quantity}</span>
-                    <button
-                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                      className="text-pos-text-muted hover:text-pos-emerald p-1"
-                    >
-                      <Plus size={16} />
-                    </button>
-                  </div>
+                        <div className="flex-1">
+                          <p className="text-pos-text-primary font-medium">{item.product.name}</p>
+                          {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                            <div className="text-xs text-pos-text-muted mt-1">
+                              {item.selectedModifiers.map(mod => mod.name).join(', ')}
+                            </div>
+                          )}
+                          <p className="text-pos-emerald text-sm mt-1">
+                            {(item.product.price + (item.selectedModifiers?.reduce((sum, m) => sum + m.price, 0) || 0)).toFixed(2)} €
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2 bg-pos-darker rounded-full px-2 py-1">
+                            {item.quantity > 1 ? (
+                              <button
+                                onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                className="text-pos-text-muted hover:text-pos-danger p-1"
+                              >
+                                <Minus size={16} />
+                              </button>
+                            ) : (
+                              <RequirePermission
+                                permission="CAN_VOID_ITEM"
+                                onAuthorizedAction={() => removeItem(item.id)}
+                                actionDetails={`Suppression de l'article ${item.product.name}`}
+                                orderId={currentOrder?.id}
+                              >
+                                <button className="text-pos-text-muted hover:text-pos-danger p-1">
+                                  <Trash2 size={16} />
+                                </button>
+                              </RequirePermission>
+                            )}
+                            <span className="w-4 text-center text-pos-text-primary font-medium">{item.quantity}</span>
+                            <button
+                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                              className="text-pos-text-muted hover:text-pos-emerald p-1"
+                            >
+                              <Plus size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                 </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
+              );
+            })}
+          </div>
         )}
       </div>
 
