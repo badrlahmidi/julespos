@@ -16,40 +16,30 @@ Nous avons posé des bases architecturales extrêmement solides qui permettent �
 
 ### Modules Fonctionnels ("Front-of-House")
 - ✅ **Dashboard POS** : Interface à hauteur fixe (native-like), grille de produits avec filtrage par catégorie, ticket de caisse interactif.
+- ✅ **Menu Engine & Suites** : Gestion avancée des modificateurs de produits (cuisson, suppléments, allergies) via une modale de configuration, et séquencement des repas ("Entrées", "Plats") intégré au KDS et tickets.
 - ✅ **Smart Split & Checkout** : Moteur de paiement complexe (division par parts égales, par article, totalité), gestion mathématique précise des totaux et TVA, intégration multi-méthodes de paiement avec animations de succès.
 - ✅ **Floor Plan Interactif** : Plan de salle en CSS Grid avec "Glassmorphism", transfert de tables via Drag-and-Drop, indicateurs de temps d'attente, et badges de statut stricts.
 
-### Modules Opérationnels ("Back-of-House" & Sécurité)
-- ✅ **KDS (Kitchen Display System)** : Interface cuisine "glanceable", tri FIFO, marqueurs d'urgence (priorité), alertes sonores (Audio Hook), et vue de consolidation.
-- ✅ **Sécurité & RBAC** : Login par code PIN type iOS avec feedback tactile (Framer Motion), wrapper `RequirePermission` bloquant les actions sensibles, journal d'audit crypté et persistant.
-- ✅ **Management UI** : Back-office simple pour la gestion du personnel et la consultation des logs d'audit.
+### Modules Opérationnels ("Back-of-House", Hardware & Sécurité)
+- ✅ **KDS (Kitchen Display System)** : Interface cuisine "glanceable", tri FIFO, marqueurs d'urgence (priorité), alertes sonores (Audio Hook), et vue de consolidation par "Suites".
+- ✅ **Hardware & Impression** : Connexion directe du navigateur vers les périphériques (WebUSB) pour l'impression de tickets légaux en ESC/POS et l'ouverture automatique du tiroir-caisse lors de paiements en espèces.
+- ✅ **Sécurité & RBAC** : Login par code PIN type iOS avec feedback tactile, wrapper `RequirePermission` bloquant les actions sensibles, journal d'audit persistant et hiérarchie de droits.
+- ✅ **Synchronisation Multi-Devices (Realtime)** : Un serveur custom `socket.io` intégré diffuse l'état en temps réel (Tables, Commandes) vers tous les clients actifs, épaulé par une file d'attente hors-ligne (Offline Queue).
+- ✅ **Intelligence Business & Back-office** : Dashboards d'analyse (Recharts), module de clôture de journée financière (Z-Report) avec export CSV FEC, et un module CRM fidélité client de base.
 
 ---
 
 ## 2. Ce Qui Manque pour un "Go-To-Market" (10/10 Ready)
 
-Bien que le MVP soit bluffant, un restaurant en production nécessite des fonctionnalités de gestion avancée et des garanties de sécurité des données. Voici les éléments critiques manquants :
+La solution a atteint une couverture de fonctionnalités quasi-exhaustive pour un MVP commercialisable, mais nécessite une infrastructure Cloud de production.
 
-### A. Persistance Réelle (Cloud & Base de Données)
-Actuellement, les données sont stockées via Zustand `persist` (LocalStorage). C'est parfait pour la résilience "Offline-first", mais insuffisant pour une sauvegarde centralisée.
-- 🔴 **Besoin** : Intégration de **TanStack Query** avec un backend (Supabase, Firebase, ou un backend custom Node.js/PostgreSQL).
-- 🔴 **Sync Offline/Online** : Utiliser IndexedDB et les Service Workers pour synchroniser les commandes créées hors-ligne une fois la connexion rétablie.
+### A. Persistance Cloud Production (Database)
+Le schéma Prisma PostgreSQL existe, mais l'application utilise toujours Zustand `persist` et le broadcast Socket en guise de backend temporaire.
+- 🔴 **Besoin** : Brancher Prisma Client dans des Server Actions / API Routes Next.js, et persister réellement chaque transaction, log, et utilisateur dans la base PostgreSQL.
+- 🔴 **Sync Hors-Ligne (PWA)** : Utiliser IndexedDB localement couplé avec une librairie (ex: TanStack Query / PWA Service Workers) pour synchroniser asynchrone les commandes créées lors des pannes réseau prolongées (bien qu'une queue mémoire soit déjà en place).
 
-### B. Modificateurs Complexes & Variantes
-Les types incluent les `modifiers`, mais l'interface ne gère pas la complexité réelle d'un restaurant (ex: "Cuisson: Saignant", "Supplément Cheddar +1.50€", "Sans Oignon").
-- 🔴 **Besoin** : Une modal `ProductCustomizer` qui s'ouvre avant l'ajout au ticket pour configurer la cuisson, les suppléments et les exclusions.
-
-### C. Impression Physique (Tickets & Factures)
-Un POS doit imprimer. Sans cela, on ne peut pas légalement ouvrir un restaurant.
-- 🔴 **Besoin** : Support de l'API WebUSB / WebBluetooth ou des serveurs d'impression locaux (ESC/POS protocol) pour imprimer les tickets de caisse (Epson, Star Micronics) et les tickets de préparation (en cas de panne du KDS).
-
-### D. Comptabilité & Clôture de Caisse (Z-Report)
-Le logiciel doit gérer le cycle de vie de l'argent physique.
-- 🔴 **Besoin** : Module de clôture de journée (X-Report pour la lecture, Z-Report pour la fermeture), calcul des fonds de tiroir, et génération d'un export comptable standard.
-
-### E. Multi-Devices & WebSockets
-Si le Serveur A prend une commande, le KDS et l'iPad du Serveur B doivent se mettre à jour instantanément.
-- 🔴 **Besoin** : Remplacer l'état local par un état partagé via **WebSockets** (ex: Socket.io, Pusher, Supabase Realtime).
+### B. Intégration de Terminaux de Paiement (TPE)
+- 🔴 **Besoin** : Interfaçage avec les API de paiement (ex: Stripe Terminal, SumUp, ou protocoles type Concert locaux) pour déclencher les TPE directement depuis l'interface sans saisie manuelle.
 
 ---
 
@@ -65,32 +55,26 @@ Pour garantir une expérience à 60 FPS sans crash au bout de 12h de service :
 
 ---
 
-## 4. Mega Roadmap : Les Prochaines Phases (7 à 10)
+## 4. Mega Roadmap : Les Futures Phases (11 à 14)
 
-Voici le plan d'attaque pour amener Ritaj POS au niveau de "Licorne de la FoodTech".
+Les phases 7 à 10 ont été intégrées avec succès. Ritaj POS est désormais une application complète. Voici le chemin vers l'échelle "Enterprise".
 
-### Phase 7 : Sync & Realtime (Le Cœur Réseau)
-- [ ] Configurer un backend PostgreSQL (via Prisma ou Drizzle).
-- [ ] Mettre en place un serveur WebSocket.
-- [ ] Connecter le store Zustand au serveur : chaque ajout au ticket diffuse un événement `ORDER_UPDATED`.
-- [ ] Créer une logique de réconciliation offline (sauvegarde dans IndexedDB -> Retry asynchrone).
+### Phase 11 : Backend & Cloud Intégration (Mise en Prod)
+- [ ] Migrer le stockage de Zustand Persist vers des API Next.js connectées à PostgreSQL via Prisma.
+- [ ] Mettre en place TanStack Query pour le fetching et la mise en cache réseau.
+- [ ] Gérer l'authentification Server-Side pour protéger les routes Admin/Back-office.
 
-### Phase 8 : Le Moteur de Personnalisation (Menu Engine)
-- [ ] Refactor du modèle de données Produit pour inclure : `MenuGroups`, `ModifierOptions`, et `PricingRules`.
-- [ ] Créer la Modale de Configuration Produit (Choix de la cuisson, suppléments, allergies).
-- [ ] Intégrer les "Suites" (Entrée -> Plat -> Dessert) dans l'OrderTicket et le KDS.
+### Phase 12 : Multi-tenant SaaS Architecture
+- [ ] Modifier le schéma Prisma pour isoler les données par "Restaurant/Tenant".
+- [ ] Créer un "Super-Admin" Dashboard pour gérer les abonnements des différents restaurants clients.
 
-### Phase 9 : Hardware & Impression (La Connexion Physique)
-- [ ] Implémenter une bibliothèque JavaScript pour le protocole ESC/POS.
-- [ ] Créer l'UI pour configurer les imprimantes réseau (IP) ou Bluetooth.
-- [ ] Générer des templates de tickets de caisse légaux (TVA, SIRET, QR Code).
-- [ ] Contrôler l'ouverture du tiroir-caisse via un signal ESC/POS.
+### Phase 13 : Gestion Avancée des Stocks & Ingénierie Menu
+- [ ] Lier les "Produits" à des "Ingrédients" pour décrémenter le stock automatiquement au gramme près lors des ventes.
+- [ ] Alertes de rupture de stock intelligentes et prédiction des besoins d'achats.
 
-### Phase 10 : Intelligence Business (Back-Office)
-- [ ] Dashboard analytique avancé (Revenu par heure, produits les plus vendus, temps d'attente moyen).
-- [ ] Module de clôture de caisse (Z-Report).
-- [ ] Export comptable automatisé (FEC, CSV).
-- [ ] Outil CRM pour la fidélité client (reconnaissance par numéro de téléphone ou QR Code).
+### Phase 14 : Écosystème Connecté
+- [ ] Lancement d'une App de prise de commande "Table-side" (QR Code Ordering).
+- [ ] Intégration d'UberEats/Deliveroo directement dans le KDS.
 
 ---
 *Ritaj POS - Architectural Design Document. Preparé pour la conquête du marché de la restauration 2026+.*
