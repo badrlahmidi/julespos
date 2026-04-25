@@ -42,13 +42,11 @@ export const RequirePermission = ({
     }
   };
 
-  const handleOverridePin = (pin: string) => {
-    // Attempt to verify PIN, ensuring the user has the required permission
-    const authorizedUser = useAuthStore.getState().users.find(u => {
-       return u.pinHash === btoa(pin).substring(0, 10) && hasPermission(u.role, permission);
-    });
+  const handleOverridePin = async (pin: string) => {
+    // Attempt to verify PIN via API/Store fallback
+    const authorizedUser = await verifyPin(pin);
 
-    if (authorizedUser) {
+    if (authorizedUser && hasPermission(authorizedUser.role, permission)) {
       setShowOverride(false);
       executeAction(authorizedUser.id, authorizedUser.name);
     } else {

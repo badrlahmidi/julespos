@@ -17,9 +17,9 @@ interface AuthState {
   currentUser: User | null;
 
   // Actions
-  login: (pin: string) => boolean;
+  login: (pin: string) => Promise<boolean>;
   logout: () => void;
-  verifyPin: (pin: string, requiredRoles?: Role[]) => User | null;
+  verifyPin: (pin: string, requiredRoles?: Role[]) => Promise<User | null>;
   addUser: (user: Omit<User, 'id'>) => void;
   updateUser: (id: string, user: Partial<User>) => void;
   deleteUser: (id: string) => void;
@@ -31,31 +31,75 @@ export const useAuthStore = create<AuthState>()(
       users: MOCK_USERS,
       currentUser: null,
 
-      login: (pin: string) => {
-        const hashed = hashPin(pin);
-        const user = get().users.find(u => u.pinHash === hashed);
-        if (user) {
-          set({ currentUser: user });
-          return true;
+      login: async (pin: string) => {
+        try {
+          const res = await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pin })
+          });
+
+          if (res.ok) {
+             const data = await res.json();
+             set({ currentUser: data.user as User });
+             return true;
+          }
+          // If response is not ok (e.g. 500 DB error), throw to trigger fallback
+          if (res.status === 500) {
+            throw new Error("Server error, attempting offline fallback");
+          }
+          return false; // Valid 401 Unauthorized
+        } catch (e) {
+          console.error("Login failed", e);
+
+          // --- FALLBACK FOR PROTOTYPE (OFFLINE MODE) ---
+          console.warn("Falling back to local mock hash due to network/DB error");
+          const hashed = hashPin(pin);
+          const user = get().users.find(u => u.pinHash === hashed);
+          if (user) {
+            set({ currentUser: user });
+            return true;
+          }
+          return false;
         }
-        return false;
       },
 
       logout: () => {
         set({ currentUser: null });
       },
 
-      verifyPin: (pin: string, requiredRoles?: Role[]) => {
-        const hashed = hashPin(pin);
-        const user = get().users.find(u => u.pinHash === hashed);
+      verifyPin: async (pin: string, requiredRoles?: Role[]) => {
+        try {
+          const res = await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pin })
+          });
 
-        if (!user) return null;
+          if (res.ok) {
+             const data = await res.json();
+             const user = data.user as User;
+             if (requiredRoles && requiredRoles.length > 0 && !requiredRoles.includes(user.role)) {
+               return null;
+             }
+             return user;
+          }
+          if (res.status === 500) {
+             throw new Error("Server error, attempting offline fallback");
+          }
+          return null;
+        } catch (e) {
+          console.error("Verify PIN failed", e);
 
-        if (requiredRoles && requiredRoles.length > 0 && !requiredRoles.includes(user.role)) {
-          return null; // Valid PIN, but insufficient privileges
+          // --- FALLBACK FOR PROTOTYPE (OFFLINE MODE) ---
+          const hashed = hashPin(pin);
+          const user = get().users.find(u => u.pinHash === hashed);
+          if (!user) return null;
+          if (requiredRoles && requiredRoles.length > 0 && !requiredRoles.includes(user.role)) {
+            return null;
+          }
+          return user;
         }
-
-        return user;
       },
 
       addUser: (user) => {

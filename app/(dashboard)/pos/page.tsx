@@ -110,8 +110,8 @@ export default function PosPage() {
     }
   }, [currentUser]);
 
-  const handleLogin = (pin: string) => {
-    const success = login(pin);
+  const handleLogin = async (pin: string) => {
+    const success = await login(pin);
     if (success) {
       setIsLoginModalOpen(false);
       setLoginError(null);
