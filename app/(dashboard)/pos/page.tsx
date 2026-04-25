@@ -52,6 +52,14 @@ export default function PosPage() {
   const login = useAuthStore((state) => state.login);
   const logout = useAuthStore((state) => state.logout);
   const logAction = useAuditStore((state) => state.logAction);
+  const connectSocket = usePosStore((state) => state.connectSocket);
+  const disconnectSocket = usePosStore((state) => state.disconnectSocket);
+
+  // Initialize WebSockets
+  useEffect(() => {
+    connectSocket();
+    return () => disconnectSocket();
+  }, [connectSocket, disconnectSocket]);
 
   // Require login on mount if no user
   useEffect(() => {

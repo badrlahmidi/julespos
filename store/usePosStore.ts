@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { io, Socket } from 'socket.io-client';
 import type { Order, OrderItem, Product, Modifier, Table, TableStatus, OrderStatus, OrderItemStatus } from '../types/pos';
 import { useAuditStore } from './useAuditStore';
 import { useAuthStore } from './useAuthStore';
@@ -8,6 +9,13 @@ interface PosState {
   currentOrder: Order | null;
   tables: Table[];
   activeOrders: Order[]; // For KDS
+
+  socket: Socket | null;
+  offlineQueue: any[];
+  isOnline: boolean;
+  connectSocket: () => void;
+  disconnectSocket: () => void;
+  emitEvent: (type: string, payload: any) => void;
 
   // Actions
   openTable: (tableId: string) => void;
@@ -45,6 +53,62 @@ export const usePosStore = create<PosState>()(
       currentOrder: null,
       tables: MOCK_TABLES,
       activeOrders: [],
+      socket: null,
+      offlineQueue: [],
+      isOnline: false,
+
+      connectSocket: () => {
+        if (get().socket) return;
+        const newSocket = io();
+
+        newSocket.on('connect', () => {
+          console.log('Connected to WebSocket server');
+          set({ isOnline: true });
+
+          // Flush offline queue
+          const { offlineQueue, socket } = get();
+          if (offlineQueue.length > 0 && socket) {
+             console.log(`Flushing ${offlineQueue.length} offline events...`);
+             offlineQueue.forEach(event => socket.emit('STATE_UPDATE', event));
+             set({ offlineQueue: [] });
+          }
+        });
+
+        newSocket.on('disconnect', () => {
+          set({ isOnline: false });
+        });
+
+        // Setup real-time event listeners
+        newSocket.on('STATE_UPDATE', (data) => {
+          if (data.type === 'SYNC_TABLES') {
+             set({ tables: data.payload });
+          } else if (data.type === 'SYNC_ORDERS') {
+             set({ activeOrders: data.payload });
+          }
+        });
+
+        set({ socket: newSocket });
+      },
+
+      disconnectSocket: () => {
+        const { socket } = get();
+        if (socket) {
+          socket.disconnect();
+          set({ socket: null });
+        }
+      },
+
+      emitEvent: (type: string, payload: any) => {
+         const state = get();
+         const event = { type, payload };
+
+         if (state.isOnline && state.socket) {
+            state.socket.emit('STATE_UPDATE', event);
+         } else {
+            // Add to offline queue
+            set({ offlineQueue: [...state.offlineQueue, event] });
+         }
+      },
 
       openTable: (tableId: string) => {
     set((state) => {
@@ -91,13 +155,17 @@ export const usePosStore = create<PosState>()(
   },
 
   setTableStatus: (tableId: string, status: TableStatus) => {
-    set((state) => ({
-      tables: state.tables.map(t =>
+    set((state) => {
+      const newTables = state.tables.map(t =>
         t.id === tableId
           ? { ...t, status, lastActionTime: Date.now() }
           : t
-      )
-    }));
+      );
+
+      get().emitEvent('SYNC_TABLES', newTables);
+
+      return { tables: newTables };
+    });
   },
 
   transferOrder: (fromTableId: string, toTableId: string) => {
@@ -281,12 +349,17 @@ export const usePosStore = create<PosState>()(
             newActiveOrders.push(updatedOrder);
           }
 
+          const updatedTables = state.currentOrder.tableId
+              ? state.tables.map(t => t.id === state.currentOrder!.tableId ? { ...t, status: 'ordered' as TableStatus, lastActionTime: Date.now() } : t)
+              : state.tables;
+
+          get().emitEvent('SYNC_ORDERS', newActiveOrders);
+          get().emitEvent('SYNC_TABLES', updatedTables);
+
           return {
             currentOrder: updatedOrder,
             activeOrders: newActiveOrders,
-            tables: state.currentOrder.tableId
-              ? state.tables.map(t => t.id === state.currentOrder!.tableId ? { ...t, status: 'ordered', lastActionTime: Date.now() } : t)
-              : state.tables
+            tables: updatedTables
           };
         });
       },
@@ -312,24 +385,36 @@ export const usePosStore = create<PosState>()(
             return order;
           });
 
+          get().emitEvent('SYNC_ORDERS', updatedActiveOrders);
+
           return { activeOrders: updatedActiveOrders };
         });
       },
 
       updateOrderStatus: (orderId: string, status: OrderStatus) => {
-        set((state) => ({
-          activeOrders: state.activeOrders.map(order =>
-            order.id === orderId ? { ...order, status } : order
-          )
-        }));
+        set((state) => {
+           const newActiveOrders = state.activeOrders.map(order =>
+             order.id === orderId ? { ...order, status } : order
+           );
+
+           get().emitEvent('SYNC_ORDERS', newActiveOrders);
+
+           return { activeOrders: newActiveOrders };
+        });
       },
 
       toggleOrderUrgent: (orderId: string) => {
-        set((state) => ({
-          activeOrders: state.activeOrders.map(order =>
-            order.id === orderId ? { ...order, isUrgent: !order.isUrgent } : order
-          )
-        }));
+        set((state) => {
+           const newActiveOrders = state.activeOrders.map(order =>
+             order.id === orderId ? { ...order, isUrgent: !order.isUrgent } : order
+           );
+
+           if (state.socket) {
+              state.socket.emit('STATE_UPDATE', { type: 'SYNC_ORDERS', payload: newActiveOrders });
+           }
+
+           return { activeOrders: newActiveOrders };
+        });
       }
 
     }),

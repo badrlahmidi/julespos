@@ -14,6 +14,13 @@ const DING_SOUND = "data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqq
 
 export default function KitchenPage() {
   const activeOrders = usePosStore(state => state.activeOrders);
+  const connectSocket = usePosStore(state => state.connectSocket);
+  const disconnectSocket = usePosStore(state => state.disconnectSocket);
+
+  useEffect(() => {
+    connectSocket();
+    return () => disconnectSocket();
+  }, [connectSocket, disconnectSocket]);
 
   const [viewMode, setViewMode] = useState<ViewMode>('standard');
   const previousOrderCountRef = useRef(0);
