@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, CreditCard, Banknote, Smartphone, QrCode, CheckCircle, Mail, MessageSquare } from 'lucide-react';
+import { X, CreditCard, Banknote, Smartphone, QrCode, CheckCircle, Mail, MessageSquare, Printer } from 'lucide-react';
 import { usePosStore } from '../../store/usePosStore';
 import { useAuditStore } from '../../store/useAuditStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import type { OrderItem } from '../../types/pos';
+import { usePrinterStore } from '../../store/usePrinterStore';
+import { generateOpenDrawerPayload, generateReceiptPayload, printViaWebUSB } from '../../lib/printerService';
+import type { OrderItem, Product } from '../../types/pos';
 
 export type SplitMode = 'full' | 'equal' | 'item';
 
@@ -27,6 +29,7 @@ export const PaymentModal = ({ isOpen, onClose }: PaymentModalProps) => {
 
   const clearCurrentOrder = usePosStore((state) => state.clearCurrentOrder);
   const setTableStatus = usePosStore((state) => state.setTableStatus);
+  const { printers, activePrinterId } = usePrinterStore();
 
   // Precision math utilities
   const round2 = (num: number) => Math.round(num * 100) / 100;
@@ -79,7 +82,7 @@ export const PaymentModal = ({ isOpen, onClose }: PaymentModalProps) => {
     });
   };
 
-  const finalizePayment = () => {
+  const finalizePayment = async (method: string) => {
     setIsSuccess(true);
 
     const user = useAuthStore.getState().currentUser;
@@ -99,14 +102,67 @@ export const PaymentModal = ({ isOpen, onClose }: PaymentModalProps) => {
       setTableStatus(currentOrder.tableId, 'available');
       clearCurrentOrder();
     }
+
+    // Hardware Actions
+    const activePrinter = printers.find(p => p.id === activePrinterId);
+    if (activePrinter && activePrinter.type === 'usb') {
+       if (method === 'Espèces') {
+          try {
+             await printViaWebUSB(activePrinter, generateOpenDrawerPayload());
+          } catch (e) {
+             console.error("Erreur ouverture tiroir", e);
+          }
+       }
+    }
   };
 
-  const handlePaymentClick = (amount: number) => {
+  const handlePaymentClick = (amount: number, method: string) => {
     const newPaid = round2(amountPaid + amount);
     setAmountPaid(newPaid);
 
     if (round2(amountDue - newPaid) <= 0) {
-      finalizePayment();
+      finalizePayment(method);
+    }
+  };
+
+  const handlePrintReceipt = async () => {
+    const activePrinter = printers.find(p => p.id === activePrinterId);
+    if (!activePrinter || activePrinter.type !== 'usb') {
+      alert("Aucune imprimante USB configurée ou active.");
+      return;
+    }
+
+    if (!currentOrder) return;
+
+    try {
+      const payload = generateReceiptPayload({
+        restaurantName: "RITAJ POS",
+        address: "123 Rue de la Tech, Paris",
+        siret: "123 456 789 00012",
+        orderId: currentOrder.id.slice(0, 5),
+        date: new Date(),
+        items: currentOrder.items.map(item => {
+           let itemPrice = item.product.price;
+           if (item.selectedModifiers) {
+             itemPrice += item.selectedModifiers.reduce((sum, mod) => sum + mod.price, 0);
+           }
+           const itemTotal = itemPrice * (1 + item.product.taxRate / 100) * item.quantity;
+           return {
+             name: item.product.name,
+             quantity: item.quantity,
+             price: itemPrice,
+             total: itemTotal
+           };
+        }),
+        subtotal: currentOrder.totalHT,
+        tax: currentOrder.totalTax,
+        total: currentOrder.total,
+        paymentMethod: splitMode // simplified for prototype
+      });
+      await printViaWebUSB(activePrinter, payload);
+    } catch (e) {
+      console.error(e);
+      alert("Échec de l'impression.");
     }
   };
 
@@ -166,6 +222,16 @@ export const PaymentModal = ({ isOpen, onClose }: PaymentModalProps) => {
                     {receiptSent ? <CheckCircle size={20} className="text-pos-emerald" /> : <MessageSquare size={20} />}
                     SMS
                   </button>
+                </div>
+
+                <div className="mt-4 flex gap-4 w-full max-w-md">
+                   <button
+                     onClick={handlePrintReceipt}
+                     className="flex-1 py-4 bg-pos-info/20 hover:bg-pos-info/30 text-pos-info font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+                   >
+                     <Printer size={20} />
+                     Imprimer le ticket
+                   </button>
                 </div>
 
                 <button
@@ -298,25 +364,25 @@ export const PaymentModal = ({ isOpen, onClose }: PaymentModalProps) => {
                 <PaymentMethodButton
                   icon={<CreditCard size={32} />}
                   label="Carte Bancaire"
-                  onClick={() => handlePaymentClick(remainingBalance)}
+                  onClick={() => handlePaymentClick(remainingBalance, 'Carte Bancaire')}
                   disabled={remainingBalance <= 0 || (splitMode === 'item' && amountDue === 0)}
                 />
                 <PaymentMethodButton
                   icon={<Banknote size={32} />}
                   label="Espèces"
-                  onClick={() => handlePaymentClick(remainingBalance)}
+                  onClick={() => handlePaymentClick(remainingBalance, 'Espèces')}
                   disabled={remainingBalance <= 0 || (splitMode === 'item' && amountDue === 0)}
                 />
                 <PaymentMethodButton
                   icon={<Smartphone size={32} />}
                   label="Apple / Google Pay"
-                  onClick={() => handlePaymentClick(remainingBalance)}
+                  onClick={() => handlePaymentClick(remainingBalance, 'Digital Wallet')}
                   disabled={remainingBalance <= 0 || (splitMode === 'item' && amountDue === 0)}
                 />
                 <PaymentMethodButton
                   icon={<QrCode size={32} />}
                   label="QR Code"
-                  onClick={() => handlePaymentClick(remainingBalance)}
+                  onClick={() => handlePaymentClick(remainingBalance, 'QR Code')}
                   disabled={remainingBalance <= 0 || (splitMode === 'item' && amountDue === 0)}
                 />
               </div>
@@ -326,7 +392,7 @@ export const PaymentModal = ({ isOpen, onClose }: PaymentModalProps) => {
                 {[10, 20, 50].map(amount => (
                   <button
                     key={amount}
-                    onClick={() => handlePaymentClick(amount)}
+                    onClick={() => handlePaymentClick(amount, 'Espèces')}
                     disabled={remainingBalance <= 0}
                     className="py-3 bg-pos-card rounded-xl text-pos-text-primary font-bold hover:bg-pos-darker hover:text-pos-emerald disabled:opacity-50 transition-colors"
                   >
